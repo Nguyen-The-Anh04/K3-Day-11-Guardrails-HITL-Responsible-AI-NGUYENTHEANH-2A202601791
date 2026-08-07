@@ -11,6 +11,7 @@ from google.adk.plugins import base_plugin
 from google.adk.agents.invocation_context import InvocationContext
 
 from core.config import ALLOWED_TOPICS, BLOCKED_TOPICS
+from agents.security_boundary import normalize_for_security
 
 
 # ============================================================
@@ -41,14 +42,34 @@ def detect_injection(user_input: str) -> bool:
     Returns:
         True if injection detected, False otherwise
     """
+    # Canonicalize Unicode and remove invisible spacing before detection
+    normalized = normalize_for_security(user_input)
+
     INJECTION_PATTERNS = [
-        # TODO: Add at least 5 regex patterns
-        # Example:
-        # r"ignore (all )?(previous|above) instructions",
+        r"ignore\s+(all\s+)?(previous|above|prior)?\s*instructions?",
+        r"disregard\s+(all\s+)?(previous|above|prior)?\s*(instructions?|rules?|directives?)",
+        r"forget\s+(your\s+)?(instructions?|rules?|prompt)",
+        r"override\s+(your\s+)?(system\s+)?(prompt|instructions?)",
+        r"you\s+are\s+now\b",
+        r"\bDAN\b",
+        r"pretend\s+(you\s+are|to\s+be)",
+        r"act\s+as\s+(a\s+|an\s+)?(unrestricted|evil|jailbroken)",
+        r"role\s*play\s+as",
+        r"system\s+prompt",
+        r"reveal\s+(your\s+)?(instructions?|prompt|secrets?|password|api\s*key)",
+        r"show\s+(me\s+)?(your\s+)?(system\s+)?(prompt|instructions?|config)",
+        r"translate\s+(your\s+)?(instructions?|system\s+prompt|rules?)",
+        r"output\s+(your\s+)?(config|instructions?|prompt)\s+(as|in)\s+(json|yaml|xml)",
+        r"fill\s+in\s*(the\s*)?(blank|blanks|___)",
+        r"bỏ\s+qua\s+(mọi\s+)?hướng\s+dẫn",
+        r"quên\s+(mọi\s+)?hướng\s+dẫn",
+        r"tiết\s+lộ\s+(mật\s+khẩu|api|system\s*prompt)",
+        r"cho\s+tôi\s+(xem\s+)?(mật\s+khẩu|system\s*prompt|api\s*key)",
+        r"bạn\s+là\s+DAN",
     ]
 
     for pattern in INJECTION_PATTERNS:
-        if re.search(pattern, user_input, re.IGNORECASE):
+        if re.search(pattern, normalized, re.IGNORECASE):
             return True
     return False
 
@@ -74,12 +95,18 @@ def topic_filter(user_input: str) -> bool:
     """
     input_lower = user_input.lower()
 
-    # TODO: Implement logic:
-    # 1. If input contains any blocked topic -> return True
-    # 2. If input doesn't contain any allowed topic -> return True
-    # 3. Otherwise -> return False (allow)
+    # 1. If input contains any blocked topic -> block immediately
+    for topic in BLOCKED_TOPICS:
+        if topic in input_lower:
+            return True
 
-    pass  # Replace with your implementation
+    # 2. If input contains any allowed topic -> allow
+    for topic in ALLOWED_TOPICS:
+        if topic in input_lower:
+            return False
+
+    # 3. No allowed topic found -> block (off-topic)
+    return True
 
 
 # ============================================================
@@ -132,14 +159,22 @@ class InputGuardrailPlugin(base_plugin.BasePlugin):
         self.total_count += 1
         text = self._extract_text(user_message)
 
-        # TODO: Implement logic:
-        # 1. Call detect_injection(text)
-        #    - If True: increment blocked_count, return self._block_response("...")
-        # 2. Call topic_filter(text)
-        #    - If True: increment blocked_count, return self._block_response("...")
-        # 3. If both are False: return None (let message through)
+        # 1. Check for injection
+        if detect_injection(text):
+            self.blocked_count += 1
+            return self._block_response(
+                "I cannot process that request. I only help with VinBank banking questions."
+            )
 
-        pass  # Replace with your implementation
+        # 2. Check topic
+        if topic_filter(text):
+            self.blocked_count += 1
+            return self._block_response(
+                "I'm a VinBank assistant and can only help with banking-related questions."
+            )
+
+        # 3. Safe — let through
+        return None
 
 
 # ============================================================

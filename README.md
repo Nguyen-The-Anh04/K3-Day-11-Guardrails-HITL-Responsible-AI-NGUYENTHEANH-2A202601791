@@ -4,6 +4,8 @@ Làm sao để ứng dụng agent an toàn hơn?
 
 **Hình thức:** bài tập **cá nhân** (1 người / 1 MSSV).
 
+**Sinh viên:** Nguyễn Thế Anh — **MSSV:** 2A202601791
+
 **Đề bài duy nhất:** [`assignment11.md`](assignment11.md) · Cách nộp: [`SUBMISSION.md`](SUBMISSION.md)
 
 ---
